@@ -12,3 +12,54 @@
 
 # Ignore oauth.txt inside /data
 /data/oauth.txt
+
+# --- Project-specific ignores ---
+/token.json
+/bolig-portal-bot-env/
+/data/*.json
+/data/*.png
+/data/oauth.txt
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pdb
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+pip-wheel-metadata/
+*.manifest
+*.spec
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+.conda/
+*.env
+
+# --- macOS / Windows ---
+.DS_Store
+Thumbs.db
+
+# --- Logs & Temp files ---
+*.log
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*.~lock*
+~$*
+
+# --- IDE / Editor junk ---
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.code-workspace
