@@ -1,0 +1,8 @@
+# who the email is from
+BOLIGPORTAL_FROM=info@boligportal.dk
+
+# your default message to landlord (use \n for new lines)
+PREWRITTEN_MESSAGE=Hej!
+
+# optional: comma-separated list of words/phrases; if any appear on the listing page, bot will skip
+BLOCK_KEYWORDS=Hedehusene,Søborg,Hvidovre,Rødovre,Glostrup,Brønshøj,Brøndby,Albertslund,Ishøj,Ground floor

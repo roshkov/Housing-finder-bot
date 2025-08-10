@@ -1,0 +1,14 @@
+# Ignore token.json in main repo root
+/token.json
+
+# Ignore bolig-portal-bot-env directory
+/bolig-portal-bot-env/
+
+# Ignore JSON files inside /data
+/data/*.json
+
+# Ignore PNG files inside /data
+/data/*.png
+
+# Ignore oauth.txt inside /data
+/data/oauth.txt
