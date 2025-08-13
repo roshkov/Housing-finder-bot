@@ -1,8 +1,11 @@
 # who the email is from
-BOLIGPORTAL_FROM=info@boligportal.dk
+BOLIGPORTAL_FROM=info@email.com
 
 # your default message to landlord (use \n for new lines)
 PREWRITTEN_MESSAGE=Hej!
 
 # optional: comma-separated list of words/phrases; if any appear on the listing page, bot will skip
-BLOCK_KEYWORDS=Hedehusene,Søborg,Hvidovre,Rødovre,Glostrup,Brønshøj,Brøndby,Albertslund,Ishøj,Ground floor
+BLOCK_KEYWORDS=words,separated,by,comma,also phrases
+
+# Discord Webhook to log message. Url can be found in Edit discord channel->Integrations->Webhooks
+DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/XXX/XXXX

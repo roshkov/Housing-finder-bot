@@ -3,7 +3,7 @@ import os
 import requests
 
 # Load variables from file
-def load_variables(path="/data/variables.txt"):
+def load_variables(path="data/variables.txt"):
     variables = {}
     if os.path.exists(path):
         with open(path, "r", encoding="utf-8") as f:
@@ -23,12 +23,10 @@ def notify_discord(event_type: str, listing_url: str, extra: str = ""):
 
     # Map events to readable messages with emojis
     messages = {
-        "blocked": f"🚫 **Blocked keyword** – skipped\n🔗 {listing_url}",
-        "sent":    f"✅ **Message sent**\n🔗 {listing_url}",
-        "already": f"ℹ️ **Already contacted**\n🔗 {listing_url}",
-        "failed":  f"⚠️ **Failed to send** – {extra}\n🔗 {listing_url}",
-        "parsed":  f"🧩 **Parsed email** – links found: {extra}\n🔗 {listing_url}",
-        "skipped": f"⏭️ **Skipped** – {extra}\n🔗 {listing_url}",
+        "blocked": f"🚫 **Blocked keyword** '{extra}'\n🔗 {listing_url}\n\u200B",
+        "sent":    f"✅ **Message sent**\n{extra}\n🔗 {listing_url}\n\u200B",
+        "already": f"ℹ️ **Already contacted**\n{extra}\n🔗 {listing_url}\n\u200B",
+        "failed":  f"⚠️ **Failed to send** – {extra}\n🔗 {listing_url}\n\u200B",
     }
 
     content = messages.get(event_type, f"ℹ️ **Notification**\n🔗 {listing_url}")

@@ -4,7 +4,7 @@ import json
 import base64
 import re
 import urllib.parse
-from typing import List, Optional, Dict
+from typing import List, Optional, Tuple, Dict
 from urllib.parse import urlparse
 
 # ---- Gmail imports ----
@@ -18,6 +18,7 @@ from bs4 import BeautifulSoup
 
 # ---- Playwright ----
 from playwright.sync_api import sync_playwright, Page
+
 
 # ---- Discord bot ----
 from discord_notifier import notify_discord
@@ -39,7 +40,7 @@ COOKIES_JSON_PATH = os.getenv("COOKIES_JSON_PATH", "data/cookies.json")
 GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.modify"]
 
 # Polling interval to check Gmail (in seconds)
-POLL_SECONDS = int(os.getenv("POLL_SECONDS", "10"))
+POLL_SECONDS = int(os.getenv("POLL_SECONDS", "20"))
 
 # =========================
 # VARIABLES.TXT LOADER
@@ -135,7 +136,7 @@ def list_unread_boligportal_messages(service, sender_email: str) -> List[dict]:
     """
     Finds unread messages from BoligPortal. Adjust if needed.
     """
-    query = f"from:{sender_email} is:unread newer_than:3d"
+    query = f"from:{sender_email} is:unread newer_than:7d"
     resp = service.users().messages().list(userId="me", q=query, maxResults=10).execute()
     return resp.get("messages", []) or []
 
@@ -268,19 +269,19 @@ def load_cookies_into_context(context):
                 cookie["sameSite"] = "Lax"
     context.add_cookies(cookies)
 
-def page_contains_block_keywords(page: Page, keywords_csv: str) -> bool:
+def page_contains_block_keywords(page: Page, keywords_csv: str) -> Tuple[bool, Optional[str]]:
     """
     Returns True if any keyword from BLOCK_KEYWORDS appears in the
     text of a <div class="css-o9y6d5"> element. If no such divs are found,
     or none contain the keywords, returns False.
     """
     if not keywords_csv.strip():
-        return False
+        return False, None
 
     # Normalise the keywords once
     keywords = [kw.strip().lower() for kw in keywords_csv.split(",") if kw.strip()]
     if not keywords:
-        return False
+        return False, None
 
     try:
         # Get all inner texts of the target divs at once
@@ -295,8 +296,8 @@ def page_contains_block_keywords(page: Page, keywords_csv: str) -> bool:
     # Check each keyword against the combined text
     for kw in keywords:
         if kw in combined_text:
-            return True
-    return False
+            return True, kw
+    return False, None
 
 def already_contacted_redirect(url: str) -> bool:
     """
@@ -329,7 +330,6 @@ def click_contact_and_send(page: Page, message_text: str) -> bool:
         try:
             fn()
             contact_clicked = True
-            notify_discord("sent", listing_url)
             break
         except Exception:
             continue
@@ -341,10 +341,13 @@ def click_contact_and_send(page: Page, message_text: str) -> bool:
     # Small wait to allow any navigation or dialog
     page.wait_for_timeout(800)
 
+    advertTitle, advertAddress = extract_listing_info(page)
+
     # If navigation happened and URL contains 'indbakke' -> already contacted
     current_url = page.url
     if already_contacted_redirect(current_url):
         print("[Playwright] Landed on inbox (indbakke) — already contacted earlier. Skipping.")
+        notify_discord("already", url, f"{advertTitle} | {advertAddress}")
         return True  # treat as 'done'
 
     # If a dialog pops up
@@ -381,13 +384,14 @@ def click_contact_and_send(page: Page, message_text: str) -> bool:
             try:
                 fn()
                 sent = True
-                notify_discord("sent", listing_url)
+                notify_discord("sent", page.url,  f"{advertTitle} | {advertAddress}")
                 break
             except Exception:
                 continue
 
         if not sent:
             print("[Playwright] Could not find the Send button.")
+            notify_discord("failed", page.url, "Could not find the Send button")
             return False
 
         # # tiny wait for any toast/confirmation
@@ -396,7 +400,28 @@ def click_contact_and_send(page: Page, message_text: str) -> bool:
 
     except Exception as e:
         print(f"[Playwright] Dialog handling failed: {e}")
+        notify_discord("failed", page.url, f"Dialog handling failed: {e}")
         return False
+
+def extract_listing_info(page):
+    # Get posting title
+    titleText = page.locator("span.css-v34a4n").first.inner_text()
+
+    # Find matching div with address
+    addressDivs = page.locator("div.css-o9y6d5")
+    addressText = None
+
+    for i in range(divs.count()):
+        text = addressDivs.nth(i).inner_text()
+        # Check if it contains a zip code(4 digits)
+        match = re.search(r"\b\d{4}\b", text)
+        if match:
+            # Slice from the match until the end
+            addressText = text[match.start():].strip()
+            break
+    
+    return titleText, addressText
+
 
 def process_listing(url: str, message_text: str, block_keywords: str) -> bool:
     """
@@ -409,17 +434,20 @@ def process_listing(url: str, message_text: str, block_keywords: str) -> bool:
         page = context.new_page()
         try:
             page.goto(url, wait_until="load", timeout=60000)
+            
+            
 
             # If redirected straight to inbox (already contacted), stop
-            if already_contacted_redirect(page.url):
-                print("[Playwright] Already contacted (indbakke).")
-                notify_discord("already", listing_url)
-                return True
+            #if already_contacted_redirect(page.url):
+            #    print("[Playwright] Already contacted (indbakke).")
+            #    notify_discord("already", url, f"{advertTitle} | {advertAddress}")
+            #    return True
 
             # Block keywords check
-            if page_contains_block_keywords(page, block_keywords):
-                print("[Playwright] Block keyword matched — skipping this listing.")
-                notify_discord("blocked", listing_url)
+            foundBlockedKeyword, keyword = page_contains_block_keywords(page, block_keywords) 
+            if foundBlockedKeyword:
+                print(f"[Playwright] Block keyword matched '{keyword}' — skipping this listing.")
+                notify_discord("blocked", url, f"{keyword}")
                 return True  # treat skip as handled
 
             # Try to contact
@@ -445,8 +473,10 @@ def process_new_emails_once(service, sender_email: str, message_text: str, block
     try:
         msgs = list_unread_boligportal_messages(service, sender_email)
         if not msgs:
+            print(f"[Bot] No emails found.")
             return
 
+        print(f"[Bot] Found {len(msgs)} emails.")
         for m in msgs:
             msg_id = m["id"]
             html = fetch_message_html(service, msg_id)
@@ -488,8 +518,6 @@ def main():
     print(f"- Waiting for emails from: {sender}")
     creds = load_gmail_credentials()
     service = get_gmail_service(creds)
-
-    start_bot_background() # Start Discord bot in background (if configured)
 
     while True:
         process_new_emails_once(service, sender, message_text, block_keywords)
