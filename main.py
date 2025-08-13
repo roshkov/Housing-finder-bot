@@ -19,7 +19,8 @@ from bs4 import BeautifulSoup
 # ---- Playwright ----
 from playwright.sync_api import sync_playwright, Page
 
-
+# ---- Discord bot ----
+from discord_notifier import notify_discord
 
 
 # =========================
@@ -266,22 +267,34 @@ def load_cookies_into_context(context):
                 # Choose a sensible default; Lax is usually fine
                 cookie["sameSite"] = "Lax"
     context.add_cookies(cookies)
+
 def page_contains_block_keywords(page: Page, keywords_csv: str) -> bool:
     """
-    If any keyword from BLOCK_KEYWORDS appears in page text, return True.
+    Returns True if any keyword from BLOCK_KEYWORDS appears in the
+    text of a <div class="css-o9y6d5"> element. If no such divs are found,
+    or none contain the keywords, returns False.
     """
     if not keywords_csv.strip():
         return False
-    text = page.content()  # HTML
-    # A bit stricter: also get visible text
+
+    # Normalise the keywords once
+    keywords = [kw.strip().lower() for kw in keywords_csv.split(",") if kw.strip()]
+    if not keywords:
+        return False
+
     try:
-        page_text = page.inner_text("body", timeout=3000)
-        text += "\n" + page_text
+        # Get all inner texts of the target divs at once
+        texts = page.locator("div.css-o9y6d5").all_inner_texts()
     except Exception:
-        pass
-    text_l = text.lower()
-    for kw in [k.strip().lower() for k in keywords_csv.split(",") if k.strip()]:
-        if kw in text_l:
+        # If selector fails or no elements, treat as empty list
+        texts = []
+
+    # Combine and lower‑case the text from all matching divs
+    combined_text = " ".join(t.lower() for t in texts)
+
+    # Check each keyword against the combined text
+    for kw in keywords:
+        if kw in combined_text:
             return True
     return False
 
@@ -316,6 +329,7 @@ def click_contact_and_send(page: Page, message_text: str) -> bool:
         try:
             fn()
             contact_clicked = True
+            notify_discord("sent", listing_url)
             break
         except Exception:
             continue
@@ -367,6 +381,7 @@ def click_contact_and_send(page: Page, message_text: str) -> bool:
             try:
                 fn()
                 sent = True
+                notify_discord("sent", listing_url)
                 break
             except Exception:
                 continue
@@ -398,11 +413,13 @@ def process_listing(url: str, message_text: str, block_keywords: str) -> bool:
             # If redirected straight to inbox (already contacted), stop
             if already_contacted_redirect(page.url):
                 print("[Playwright] Already contacted (indbakke).")
+                notify_discord("already", listing_url)
                 return True
 
             # Block keywords check
             if page_contains_block_keywords(page, block_keywords):
                 print("[Playwright] Block keyword matched — skipping this listing.")
+                notify_discord("blocked", listing_url)
                 return True  # treat skip as handled
 
             # Try to contact
@@ -471,6 +488,8 @@ def main():
     print(f"- Waiting for emails from: {sender}")
     creds = load_gmail_credentials()
     service = get_gmail_service(creds)
+
+    start_bot_background() # Start Discord bot in background (if configured)
 
     while True:
         process_new_emails_once(service, sender, message_text, block_keywords)
