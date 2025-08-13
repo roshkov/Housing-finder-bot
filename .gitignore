@@ -2,6 +2,7 @@
 /token.json
 /data/*.json
 /data/*.png
+/data/variables.txt
 
 # --- Python ---
 __pycache__/
