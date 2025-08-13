@@ -1,20 +1,7 @@
-# Ignore token.json in main repo root
-/token.json
-
-# Ignore JSON files inside /data
-/data/*.json
-
-# Ignore PNG files inside /data
-/data/*.png
-
-# Ignore oauth.txt inside /data
-/data/oauth.txt
-
 # --- Project-specific ignores ---
 /token.json
 /data/*.json
 /data/*.png
-/data/oauth.txt
 
 # --- Python ---
 __pycache__/

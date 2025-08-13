@@ -75,13 +75,9 @@ def get_config() -> Dict[str, str]:
     file_vars = load_varfile(VARIABLES_FILE)
     cfg = dict(file_vars)
     # env vars override file
-    for key in ["BOLIGPORTAL_FROM", "PREWRITTEN_MESSAGE", "BLOCK_KEYWORDS"]:
+    for key in ["EMAIL_FROM", "PREWRITTEN_MESSAGE", "BLOCK_KEYWORDS"]:
         if os.getenv(key):
             cfg[key] = os.getenv(key)
-    # defaults if missing
-    cfg.setdefault("BOLIGPORTAL_FROM", "noreply@boligportal.dk")
-    cfg.setdefault("PREWRITTEN_MESSAGE", "Hej! Jeg er interesseret i boligen.")
-    cfg.setdefault("BLOCK_KEYWORDS", "")
     return cfg
 
 # =========================
@@ -510,7 +506,7 @@ def process_new_emails_once(service, sender_email: str, message_text: str, block
 
 def main():
     cfg = get_config()
-    sender = cfg["BOLIGPORTAL_FROM"]
+    sender = cfg["EMAIL_FROM"]
     message_text = cfg["PREWRITTEN_MESSAGE"]
     block_keywords = cfg.get("BLOCK_KEYWORDS", "")
 
