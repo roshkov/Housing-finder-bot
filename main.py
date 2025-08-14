@@ -19,7 +19,7 @@ from googleapiclient.errors import HttpError
 from bs4 import BeautifulSoup
 
 # ---- Playwright ----
-from playwright.sync_api import sync_playwright, Page
+from playwright.sync_api import sync_playwright, Page, TimeoutError as PWTimeoutError
 
 
 # ---- Discord bot ----
@@ -320,7 +320,7 @@ def already_contacted_redirect(url: str) -> bool:
     """
     If URL contains 'indbakke', assume it's your inbox (already contacted).
     """
-    return "indbakke" in url.lower()
+    return "indbakke" in url.lower() or "inbox" in url.lower()
 
 def click_contact_and_send(page: Page, message_text: str) -> bool:
     """
@@ -331,6 +331,10 @@ def click_contact_and_send(page: Page, message_text: str) -> bool:
        - fill message
        - click 'Send'
     """
+
+    # Extract listing info (title and address) for notifications
+    advertTitle, advertAddress = extract_listing_info(page)
+
     # Click the "Contact" button (be flexible with text)
     # Try multiple strategies
     contact_clicked = False
@@ -338,6 +342,7 @@ def click_contact_and_send(page: Page, message_text: str) -> bool:
         # by role & text
         lambda: page.get_by_role("button", name=re.compile(r"(Contact|Kontakt)", re.I)).click(timeout=5000),
         # by text inside span
+        lambda: page.locator("button:has-text('Skriv til udlejer')").first.click(timeout=5000),
         lambda: page.locator("button:has-text('Contact')").first.click(timeout=5000),
         lambda: page.locator("button:has-text('Kontakt')").first.click(timeout=5000),
         # class heuristic (your sample)
@@ -358,13 +363,11 @@ def click_contact_and_send(page: Page, message_text: str) -> bool:
     # Small wait to allow any navigation or dialog
     page.wait_for_timeout(800)
 
-    advertTitle, advertAddress = extract_listing_info(page)
-
     # If navigation happened and URL contains 'indbakke' -> already contacted
     current_url = page.url
     if already_contacted_redirect(current_url):
         print("[Playwright] Landed on inbox (indbakke) — already contacted earlier. Skipping.")
-        notify_discord("already", url, f"{advertTitle} | {advertAddress}")
+        notify_discord("already", current_url, f"{advertTitle} | {advertAddress}")
         return True  # treat as 'done'
 
     # If a dialog pops up
@@ -420,23 +423,53 @@ def click_contact_and_send(page: Page, message_text: str) -> bool:
         notify_discord("failed", page.url, f"Dialog handling failed: {e}")
         return False
 
-def extract_listing_info(page):
-    # Get posting title
-    titleText = page.locator("span.css-v34a4n").first.inner_text()
 
-    # Find matching div with address
-    addressDivs = page.locator("div.css-o9y6d5")
+def extract_listing_info(page: Page):
+    """
+    Returns (titleText, addressText)
+      - titleText: listing title (e.g., "1 room apartment of 38 m²")
+      - addressText: text of the matching address div sliced from the first 4-digit ZIP; or None
+    """
+    # 1) Title: prefer the exact class you provided
+    titleText = None
+    print(f"[Playwright] PAGE.{page.url}")
+    loc = page.locator("span.css-v34a4n").first
+    try:
+        # Wait for it to be visible and read it
+        loc.wait_for(state="visible", timeout=5000)
+        titleText = loc.inner_text().strip()
+    except PWTimeoutError:
+        # 2) Minimal fallback: any span that contains "m²"
+        # (keeps things robust across minor class/name changes)
+        alt = page.locator("span", has_text=re.compile(r"\bm²\b")).first
+        try:
+            alt.wait_for(state="attached", timeout=3000)
+            candidate = (alt.text_content() or "").strip()
+            if candidate:
+                titleText = candidate
+        except PWTimeoutError:
+            pass
+
+    if not titleText:
+        # If absolutely nothing matched, return None for title (and address later)
+        titleText = None
+
+    # 3) Address: find the first div.css-o9y6d5 containing a 4-digit ZIP, then slice from ZIP → end
     addressText = None
+    addressDivs = page.locator("div.css-o9y6d5")
 
-    for i in range(divs.count()):
-        text = addressDivs.nth(i).inner_text()
-        # Check if it contains a zip code(4 digits)
-        match = re.search(r"\b\d{4}\b", text)
-        if match:
-            # Slice from the match until the end
-            addressText = text[match.start():].strip()
-            break
-    
+    try:
+        count = addressDivs.count()  # number of matching divs (may be 0)
+        for i in range(count):
+            text = (addressDivs.nth(i).inner_text() or "").strip()
+            m = re.search(r"\b\d{4}\b", text)
+            if m:
+                addressText = text[m.start():].strip()
+                break
+    except PWTimeoutError:
+        # If count() or inner_text() times out (rare), leave addressText as None
+        pass
+
     return titleText, addressText
 
 
@@ -508,7 +541,7 @@ def process_new_emails_once(service, sender_email: str, message_text: str, block
                     continue
                 print(f"[Bot] Processing listing: {url}")
                 ok = process_listing(url, message_text, block_keywords)
-                print(f"[Bot] Result: {'SENT/OK' if ok else 'FAILED'}")
+                # print(f"[Bot] Result: {'SENT/OK' if ok else 'FAILED'}")
 
             # OPTIONAL: mark as read (requires gmail.modify scope)
             # service.users().messages().modify(
