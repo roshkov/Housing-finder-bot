@@ -27,6 +27,7 @@ def notify_discord(event_type: str, listing_url: str, extra: str = ""):
         "sent":    f"✅ **Message sent**\n{extra}\n🔗 {listing_url}\n\u200B",
         "already": f"ℹ️ **Already contacted**\n{extra}\n🔗 {listing_url}\n\u200B",
         "failed":  f"⚠️ **Failed to send** – {extra}\n🔗 {listing_url}\n\u200B",
+        "expired_session": f"❌ **Invalid session**\ - {extra}\n\u200B",
     }
 
     content = messages.get(event_type, f"ℹ️ **Notification**\n🔗 {listing_url}")

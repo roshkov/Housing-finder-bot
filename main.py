@@ -12,6 +12,8 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+from google.auth.transport.requests import Request
+from googleapiclient.errors import HttpError
 
 # ---- HTML parsing ----
 from bs4 import BeautifulSoup
@@ -251,6 +253,21 @@ def extract_listing_links_from_email_html(html: str) -> List[str]:
 # PLAYWRIGHT HELPERS
 # =========================
 
+def ensure_gmail_token(creds) -> bool:
+    """
+    Try to refresh the Gmail access token. 
+    Returns True if usable, False if refresh failed or creds missing.
+    """
+    try:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        return True
+    except Exception as e:
+        msg = f"Gmail token refresh failed: {e}"
+        print("[Gmail]", msg)
+        notify_discord("expired_session", "", extra=msg)
+        return False
+
 def load_cookies_into_context(context):
     raw = os.getenv("COOKIES_JSON")
     if not raw:
@@ -264,6 +281,10 @@ def load_cookies_into_context(context):
                 # Choose a sensible default; Lax is usually fine
                 cookie["sameSite"] = "Lax"
     context.add_cookies(cookies)
+
+def cookies_are_valid(page) -> bool:
+    pageContent = page.content().lower()
+    return ("log ind" not in pageContent)
 
 def page_contains_block_keywords(page: Page, keywords_csv: str) -> Tuple[bool, Optional[str]]:
     """
@@ -431,13 +452,11 @@ def process_listing(url: str, message_text: str, block_keywords: str) -> bool:
         try:
             page.goto(url, wait_until="load", timeout=60000)
             
-            
+            if not cookies_are_valid(page):
+                print("[Playwright] Cookies are invalid or expired. Cannot proceed.")
+                notify_discord("expired_session", url, "Failed to login. Cookies are invalid or expired")
+                return False
 
-            # If redirected straight to inbox (already contacted), stop
-            #if already_contacted_redirect(page.url):
-            #    print("[Playwright] Already contacted (indbakke).")
-            #    notify_discord("already", url, f"{advertTitle} | {advertAddress}")
-            #    return True
 
             # Block keywords check
             foundBlockedKeyword, keyword = page_contains_block_keywords(page, block_keywords) 
@@ -516,7 +535,20 @@ def main():
     service = get_gmail_service(creds)
 
     while True:
-        process_new_emails_once(service, sender, message_text, block_keywords)
+        if not ensure_gmail_token(creds):
+            break
+        try:
+            process_new_emails_once(service, sender, message_text, block_keywords)
+        except HttpError as he:
+            # If unauthorized, notify + stop so you can re-auth
+            status = getattr(he, "status_code", None)
+            if status == 401:
+                msg = "Gmail 401 Unauthorized: delete token.json and re-authorize."
+                print("[Gmail]", msg)
+                notify_discord("expired_session", "", extra=msg)
+                break
+            else:
+                print(f"[Gmail] API error: {he}")
         time.sleep(POLL_SECONDS)
 
 if __name__ == "__main__":
