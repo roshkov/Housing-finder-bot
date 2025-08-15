@@ -88,42 +88,71 @@ def get_config() -> Dict[str, str]:
 
 def load_gmail_credentials() -> Credentials:
     """
-    Loads OAuth credentials for Gmail.
-    First run: opens a browser for consent and creates token.json.
-    Later runs: reuses token.json.
-    Supports reading credentials/token from env vars for cloud.
+    Loads Gmail OAuth credentials with sensible precedence:
+      1) GMAIL_TOKEN env (Railway) -> refresh if needed
+      2) local token.json          -> refresh if needed
+      3) run local OAuth using env GMAIL_CREDENTIALS or data/credentials.json
     """
-    env_credentials = os.getenv("GMAIL_CREDENTIALS")
-    env_token = os.getenv("GMAIL_TOKEN")
-
-    # If both provided via env (cloud)
-    if env_credentials and env_token:
-        return Credentials.from_authorized_user_info(json.loads(env_token), scopes=GMAIL_SCOPES)
-
-    # Local token.json flow
     creds: Optional[Credentials] = None
-    if os.path.exists(TOKEN_JSON_PATH):
-        creds = Credentials.from_authorized_user_file(TOKEN_JSON_PATH, scopes=GMAIL_SCOPES)
 
-    if not creds or not creds.valid:
-        # First-time auth
-        if env_credentials:
-            creds_file = "credentials_tmp.json"
-            with open(creds_file, "w", encoding="utf-8") as f:
-                f.write(env_credentials)
-            flow = InstalledAppFlow.from_client_secrets_file(creds_file, GMAIL_SCOPES)
-            creds = flow.run_local_server(port=0)
-            os.remove(creds_file)
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_JSON_PATH, GMAIL_SCOPES)
-            creds = flow.run_local_server(port=0)
-
-        # Store locally for next runs
+    # 1) Preferred on Railway: env GMAIL_TOKEN (JSON)
+    token_env = os.getenv("GMAIL_TOKEN")
+    if token_env:
         try:
-            with open(TOKEN_JSON_PATH, "w", encoding="utf-8") as token:
-                token.write(creds.to_json())
-        except Exception:
-            pass
+            info = json.loads(token_env)
+            creds = Credentials.from_authorized_user_info(info, GMAIL_SCOPES)
+        except Exception as e:
+            msg = f"[Gmail] Invalid GMAIL_TOKEN JSON: {e}"
+            print(msg)
+            notify_discord("failed", extra=msg)
+
+    # 2) Local token.json
+    if creds is None and os.path.exists(TOKEN_JSON_PATH):
+        try:
+            creds = Credentials.from_authorized_user_file(TOKEN_JSON_PATH, GMAIL_SCOPES)
+        except Exception as e:
+            msg = f"[Gmail] Invalid token.json: {e}"
+            print(msg)
+            notify_discord("failed", extra=msg)
+
+    # Try to refresh if expired and we have a refresh token
+    if creds and creds.expired and creds.refresh_token:
+        try:
+            creds.refresh(Request())
+            # if we loaded from file, persist the refreshed token
+            try:
+                with open(TOKEN_JSON_PATH, "w", encoding="utf-8") as f:
+                    f.write(creds.to_json())
+            except Exception:
+                pass
+            return creds
+        except Exception as e:
+            msg = f"[Gmail] Refresh failed — re-auth required: {e}"
+            print(msg)
+            notify_discord("failed", extra=msg)
+            creds = None  # fall through to re-auth
+
+    # If still valid, return
+    if creds and creds.valid:
+        return creds
+
+    # 3) First-time auth (local): use env GMAIL_CREDENTIALS JSON or credentials.json file
+    client_json = os.getenv("GMAIL_CREDENTIALS")
+    if client_json:
+        config = json.loads(client_json)
+        flow = InstalledAppFlow.from_client_config(config, GMAIL_SCOPES)
+    else:
+        flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_JSON_PATH, GMAIL_SCOPES)
+
+    # Request offline so we get a refresh token
+    creds = flow.run_local_server(port=0, access_type="offline", prompt="consent")
+
+    # Save locally for next runs (no-op on Railway)
+    try:
+        with open(TOKEN_JSON_PATH, "w", encoding="utf-8") as f:
+            f.write(creds.to_json())
+    except Exception:
+        pass
 
     return creds
 
