@@ -33,7 +33,7 @@ from discord_notifier import notify_discord
 # Files (change VARIABLES_FILE to your preferred path)
 VARIABLES_FILE = os.getenv("VARIABLES_FILE", "data/variables.txt")
 CREDENTIALS_JSON_PATH = os.getenv("CREDENTIALS_JSON_PATH", "data/credentials.json")
-TOKEN_JSON_PATH = os.getenv("TOKEN_JSON_PATH", "token.json")
+TOKEN_JSON_PATH = os.getenv("TOKEN_JSON_PATH", "data/token.json")
 COOKIES_JSON_PATH = os.getenv("COOKIES_JSON_PATH", "data/cookies.json")
 
 # Gmail scopes:
@@ -461,7 +461,6 @@ def extract_listing_info(page: Page):
     """
     # 1) Title: prefer the exact class you provided
     titleText = None
-    print(f"[Playwright] PAGE.{page.url}")
     loc = page.locator("span.css-v34a4n").first
     try:
         # Wait for it to be visible and read it
@@ -507,7 +506,10 @@ def process_listing(url: str, message_text: str, block_keywords: str) -> bool:
     Open listing, check block keywords, then send message if allowed.
     """
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)  # set False to debug locally
+        browser = p.chromium.launch(
+            headless=True,
+            args=["--no-sandbox", "--disable-dev-shm-usage"]
+        )
         context = browser.new_context()
         load_cookies_into_context(context)
         page = context.new_page()
@@ -550,40 +552,45 @@ def process_new_emails_once(service, sender_email: str, message_text: str, block
     try:
         msgs = list_unread_boligportal_messages(service, sender_email)
         if not msgs:
-            print(f"[Bot] No emails found.")
+            print("[Bot] No emails found.")
             return
 
-        print(f"[Bot] Found {len(msgs)} emails.")
+        print(f"[Bot] Found {len(msgs)} email(s).")
         for m in msgs:
             msg_id = m["id"]
-            html = fetch_message_html(service, msg_id)
-            if not html:
-                continue
-
-            links = extract_listing_links_from_message_html(html)
-            if not links:
-                continue
-
-            print(f"[Bot] Found {len(links)} link(s) in email.")
-            for url in links:
-                if "boligportal.dk" not in url:
+            try:
+                html = fetch_message_html(service, msg_id)
+                if not html:
+                    print(f"[Bot] Empty/unsupported email body for {msg_id}")
                     continue
-                print(f"[Bot] Processing listing: {url}")
-                ok = process_listing(url, message_text, block_keywords)
-                # print(f"[Bot] Result: {'SENT/OK' if ok else 'FAILED'}")
 
-            # OPTIONAL: mark as read (requires gmail.modify scope)
-            # service.users().messages().modify(
-            #     userId="me", id=msg_id, body={"removeLabelIds": ["UNREAD"]}
-            # ).execute()
-            service.users().messages().modify(
-            userId="me", id=msg_id, body={"removeLabelIds": ["UNREAD"]}
-            ).execute()
+                links = extract_listing_links_from_message_html(html)
+                if not links:
+                    print(f"[Bot] No boligportal links in email {msg_id}")
+                    continue
 
+                print(f"[Bot] Found {len(links)} unique link(s) in email {msg_id}.")
+                for url in links:
+                    if "boligportal.dk" not in url:
+                        continue
+                    print(f"[Bot] Processing listing: {url}")
+                    ok = process_listing(url, message_text, block_keywords)
+
+            except Exception as e:
+                print(f"[Bot] Error while handling email {msg_id}: {e}")
+
+            finally:
+                # mark as read, even if already contacted, blocked, cookies expired, or errors
+                try:
+                    service.users().messages().modify(
+                        userId="me",
+                        id=msg_id,
+                        body={"removeLabelIds": ["UNREAD"]}
+                    ).execute()
+                except HttpError as he:
+                    print(f"[Bot] Failed to mark email {msg_id} as read: {he}")
     except HttpError as he:
-        print(f"[Gmail] API error: {he}")
-    except Exception as e:
-        print(f"[Bot] Unexpected error: {e}")
+        print(f"[Bot] Gmail API error: {he}")
 
 def main():
     cfg = get_config()
