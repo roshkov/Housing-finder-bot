@@ -38,7 +38,11 @@ def notify_discord(event_type: str, listing_url: str, extra: str = ""):
         "expired_session": f"❌ **Invalid session**\ - {extra}\n\u200B",
     }
 
-    content = messages.get(event_type, f"ℹ️ **Notification**\n🔗 {listing_url}")
+    if event_type not in messages:
+       print(f"[Discord] Unknown event type '{event_type}', skipping notification.")
+       return False
+
+    content = messages[event_type]
 
     try:
         response = requests.post(WEBHOOK_URL, json={"content": content})
