@@ -15,16 +15,11 @@ from googleapiclient.errors import HttpError
 from google.auth.transport.requests import Request
 from googleapiclient.errors import HttpError
 
-# ---- HTML parsing ----
 from bs4 import BeautifulSoup
-
-# ---- Playwright ----
 from playwright.sync_api import sync_playwright, Page, TimeoutError as PWTimeoutError
-
-
-# ---- Discord bot ----
 from discord_notifier import notify_discord
-
+from term_detector import is_short_term_heuristic
+import term_detector
 
 # =========================
 # CONFIG DEFAULTS
@@ -351,13 +346,36 @@ def page_contains_block_keywords(page: Page, keywords_csv: str) -> Tuple[bool, O
             return True, kw
     return False, None
 
+def page_contains_short_term(page: Page, months_threshold: int = 8) -> Optional[dict]:
+    """
+    Combines text from the first <div class="css-1o5zkyw"> and <div class="css-1f7mpex">,
+    passes to is_short_term_heuristic, and returns the result dict.
+    Returns None if both divs are missing or empty.
+    """
+    try:
+        text1 = ""
+        text2 = ""
+        div1 = page.locator("div.css-1o5zkyw").first
+        if div1.count() > 0:
+            text1 = div1.inner_text().strip()
+        div2 = page.locator("div.css-1f7mpex").first
+        if div2.count() > 0:
+            text2 = div2.inner_text().strip()
+        combined_text = " ".join(t for t in [text1, text2] if t)
+        if not combined_text:
+            return None
+        return is_short_term_heuristic(combined_text, months_threshold=months_threshold)
+    except Exception as e:
+        print(f"[Playwright] Error in page_contains_short_term: {e}")
+        return None
+
 def already_contacted_redirect(url: str) -> bool:
     """
     If URL contains 'indbakke', assume it's your inbox (already contacted).
     """
     return "indbakke" in url.lower() or "inbox" in url.lower()
 
-def click_contact_and_send(page: Page, message_text: str) -> bool:
+def click_contact_and_send(page: Page, message_text: str, short_term_suspected = False) -> bool:
     """
     1) Click 'Contact' button
     2) If redirected to 'indbakke' (already contacted) -> stop
@@ -435,7 +453,7 @@ def click_contact_and_send(page: Page, message_text: str) -> bool:
             try:
                 fn()
                 sent = True
-                notify_discord("sent", page.url,  f"{advertTitle} | {advertAddress}")
+                notify_discord("sent", page.url,  f"{advertTitle} | {advertAddress} | {'⚠️Short Term Suspected' if short_term_suspected else ''}")
                 break
             except Exception:
                 continue
@@ -531,8 +549,21 @@ def process_listing(url: str, message_text: str, block_keywords: str) -> bool:
                 notify_discord("blocked", url, f"{keyword}")
                 return True  # treat skip as handled
 
+            
+            shortTermSuspected = False
+            termDetector = page_contains_short_term(page, months_threshold=8)
+            if (termDetector and termDetector.get("is_short_term")):
+                if (termDetector.get("confidence")=="high"):
+                    notificationMessage = f"Short term ({termDetector.confidence}). Reason: {termDetector.reason}"
+                    print(f"[Playwright] Short term {notificationMessage} — skipping this listing.")
+                    notify_discord("short_term", url, f"{notificationMessage}")
+                    return True  # treat skip as handled
+                else:
+                    # If low confidence, still allow to contact but notify that there is a suspected short term
+                    shortTermSuspected = True
+
             # Try to contact
-            ok = click_contact_and_send(page, message_text)
+            ok = click_contact_and_send(page, message_text, shortTermSuspected)
             return ok
         except Exception as e:
             print(f"[Playwright] Failed on {url}: {e}")
