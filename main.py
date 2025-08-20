@@ -401,7 +401,6 @@ def click_contact_and_send(page: Page, message_text: str, short_term_suspected =
 
     for fn in selectors_try:
         try:
-            print(f"[DEBUG] Trying to click Contact button with {fn.__name__}...")
             fn()
             contact_clicked = True
             break
