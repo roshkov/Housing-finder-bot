@@ -13,8 +13,16 @@ def load_variables(path="data/variables.txt"):
                     variables[key] = value
     return variables
 
-VARS = load_variables()
-WEBHOOK_URL = VARS.get("DISCORD_WEBHOOK_URL")
+def get_webhook_url():
+    # Prefer environment variable, fallback to variables.txt
+    env_url = os.getenv("DISCORD_WEBHOOK_URL")
+    if env_url and env_url.strip():
+        return env_url.strip()
+    vars_file = load_variables()
+    file_url = vars_file.get("DISCORD_WEBHOOK_URL", "").strip()
+    return file_url if file_url else None
+
+WEBHOOK_URL = get_webhook_url()
 
 def notify_discord(event_type: str, listing_url: str, extra: str = ""):
     if not WEBHOOK_URL:
