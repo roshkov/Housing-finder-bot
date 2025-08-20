@@ -433,7 +433,6 @@ def click_contact_and_send(page: Page, message_text: str, short_term_suspected =
 
         if textarea is None:
             # Any textarea inside an open dialog
-            # Radix dialogs usually have role="dialog"
             textarea = page.locator("div[role='dialog'] textarea").first
             if not textarea or not textarea.is_visible():
                 # fallback: any textarea on page
