@@ -236,6 +236,12 @@ def extract_listing_links_from_email_html(html: str) -> List[str]:
     We target tbody > tr:nth-of-type(2) and collect <a> inside (dedupe, normalize).
     """
     soup = BeautifulSoup(html, "html.parser")
+
+    # Early exit if property is marked as rented out
+    rented_out_div = soup.find("div", string=lambda s: s and "The property has been marked as rented out" in s)
+    if rented_out_div:
+        return []
+
     # Pick the first (main) tbody; adjust if multiple
     tbodies = soup.find_all("tbody")
     if not tbodies:

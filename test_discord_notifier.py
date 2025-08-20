@@ -1,8 +1,4 @@
 ﻿
-
-import os
-import tempfile
-import pytest
 from unittest import mock
 
 import discord_notifier
