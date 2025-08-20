@@ -392,13 +392,16 @@ def click_contact_and_send(page: Page, message_text: str, short_term_suspected =
     # Try multiple strategies
     contact_clicked = False
     selectors_try = [
-        # by role & text
-        lambda: page.get_by_role("button", name=re.compile(r"(Contact|Kontakt|Go to inbox|Gå til beskeder|Skriv til udlejer)", re.I)).click(timeout=500),
-        # class heuristic (your sample)
-        lambda: page.locator("button.temporaryButtonClassname").first.click(timeout=500),
+        lambda: page.locator("button:has-text('Contact')").first.click(timeout=3000),
+        lambda: page.locator("button:has-text('Kontakt')").first.click(timeout=3000),
+        lambda: page.locator("button:has-text('Skriv til udlejer')").first.click(timeout=3000),
+        lambda: page.locator("button:has-text('Go to inbox')").first.click(timeout=3000),
+        lambda: page.locator("button:has-text('Gå til beskeder')").first.click(timeout=3000),
     ]
+
     for fn in selectors_try:
         try:
+            print(f"[DEBUG] Trying to click Contact button with {fn.__name__}...")
             fn()
             contact_clicked = True
             break
