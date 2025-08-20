@@ -369,13 +369,9 @@ def click_contact_and_send(page: Page, message_text: str) -> bool:
     contact_clicked = False
     selectors_try = [
         # by role & text
-        lambda: page.get_by_role("button", name=re.compile(r"(Contact|Kontakt)", re.I)).click(timeout=5000),
-        # by text inside span
-        lambda: page.locator("button:has-text('Skriv til udlejer')").first.click(timeout=5000),
-        lambda: page.locator("button:has-text('Contact')").first.click(timeout=5000),
-        lambda: page.locator("button:has-text('Kontakt')").first.click(timeout=5000),
+        lambda: page.get_by_role("button", name=re.compile(r"(Contact|Kontakt|Go to inbox|Gå til beskeder|Skriv til udlejer)", re.I)).click(timeout=500),
         # class heuristic (your sample)
-        lambda: page.locator("button.temporaryButtonClassname").first.click(timeout=5000),
+        lambda: page.locator("button.temporaryButtonClassname").first.click(timeout=500),
     ]
     for fn in selectors_try:
         try:
