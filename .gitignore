@@ -1,8 +1,8 @@
 # --- Project-specific ignores ---
 /token.json
-/data/*.json
-/data/*.png
-/data/variables.txt
+/bolig-portal-bot-env/
+/data
+
 
 # --- Python ---
 __pycache__/
@@ -43,6 +43,7 @@ Thumbs.db
 
 # --- IDE / Editor junk ---
 .vscode/
+.vs/
 .idea/
 *.sublime-project
 *.sublime-workspace
