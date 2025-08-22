@@ -17,9 +17,8 @@ from googleapiclient.errors import HttpError
 
 from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright, Page, TimeoutError as PWTimeoutError
-from discord_notifier import notify_discord
-from term_detector import is_short_term_heuristic
-import term_detector
+from .discord_notifier import notify_discord
+from .term_detector import is_short_term_heuristic
 
 # =========================
 # CONFIG DEFAULTS
