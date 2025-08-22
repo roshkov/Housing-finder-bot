@@ -10,7 +10,8 @@ textWithShortTerm = ["Well-maintained 2-room apartment located in the heart of I
         "It is a beautiful apartment close to Netto, a football park and a train station. About 5 minutes walk from Åmarken station.A totally furnished apartment. Available to rent for 6 months.",
         "Bright Corner Apartment for Rent – Oct 2025 to Feb 2026. We are renting out our sunny corner apartment while we are on exchange. The apartment has sunlight all day and offers:. - A large bedroom",
         "Lejlighed udlejes pø østerfarimagsgade, 4 sal 2100 København ø. -Her udlejes 70 kvm, fra tidsrumet juni 2025 1 oktober 2025 - Der er i lejligheden et sovevørelse, nyt badevørelse, og et køkkeallerum , samt stue. Lejlighed er møbleret. (Se foto)",
-        "2-værelses møbleret lejlighed på Nørrebro med indflytning 1. septemberJeg udlejer min dejlige 2-værelses lejlighed på Nørrebro fra 1. september 2025 til 1. august 2026."
+        "2-værelses møbleret lejlighed på Nørrebro med indflytning 1. septemberJeg udlejer min dejlige 2-værelses lejlighed på Nørrebro fra 1. september 2025 til 1. august 2026.",
+        "Temporary Norrebro Sublet. 55 square metre Norrebro apartment with balcony available for as a temporary sublet from September 2nd to October 20th 2025.  Rent is 9,300/month, prorated, utilities included. Suitable for one person only"
         ]
 
 textWithNoTermMentioned = ["4 værelses lejlighed på Mosedalvej, få hundrede meter fra lejligheden. Lejligheden indeholder 2 soveværelser og en stue samt køkken og badeværelse. Lejligheden er delevenlig og kan bebos af op til 2-4 personer. KUN VIRKSOMHEDER.",
