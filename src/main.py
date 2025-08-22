@@ -99,7 +99,7 @@ def load_gmail_credentials() -> Credentials:
         except Exception as e:
             msg = f"[Gmail] Invalid GMAIL_TOKEN JSON: {e}"
             print(msg)
-            notify_discord("failed", extra=msg)
+            notify_discord("failed", "", extra=msg)
 
     # 2) Local token.json
     if creds is None and os.path.exists(TOKEN_JSON_PATH):
@@ -108,7 +108,7 @@ def load_gmail_credentials() -> Credentials:
         except Exception as e:
             msg = f"[Gmail] Invalid token.json: {e}"
             print(msg)
-            notify_discord("failed", extra=msg)
+            notify_discord("failed", "", extra=msg)
 
     # Try to refresh if expired and we have a refresh token
     if creds and creds.expired and creds.refresh_token:
@@ -124,7 +124,7 @@ def load_gmail_credentials() -> Credentials:
         except Exception as e:
             msg = f"[Gmail] Refresh failed — re-auth required: {e}"
             print(msg)
-            notify_discord("failed", extra=msg)
+            notify_discord("failed", "", extra=msg)
             creds = None  # fall through to re-auth
 
     # If still valid, return

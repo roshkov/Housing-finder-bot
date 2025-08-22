@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from term_detector import is_short_term_heuristic
+from src.term_detector import is_short_term_heuristic
 
 textWithShortTerm = ["Well-maintained 2-room apartment located in the heart of Inner Østerbro, available for rent for an 11-month lease starting 15.09.25 (and ending 15.08.2026)",
         "Fremlejes til ikkerygere og folk uden dyr i perioden 18/9/2025-26/6/2026.",
