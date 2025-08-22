@@ -24,7 +24,15 @@ This code is created and used strictly for programming practice and educational 
 4. Store the credentials.  
 5. Under **APIs & Services → OAuth consent screen**:  
    - Add yourself as a Test User in the **Audience** tab.  
-   - Add the `auth/gmail.readonly` scope in the **Data Access** tab.  
+   - Add the `auth/gmail.readonly`, `auth/gmail.modify` scope in the **Data Access** tab.
+  
+### Switch Google OAuth App from Testing → Production
+
+1. Go to [OAuth consent screen](https://console.cloud.google.com/apis/credentials/consent) in Google Cloud Console. Select the project
+2. Scroll to **Publishing status** → click **Publish app**.  
+3. Get Gmail Token for Railway (see below)
+4. Running main.py will create data/token.json
+5. Add it as environmetnal variable for railway (if running in railway)
 
 ### Cookies from Website
 1. Install the **Cookie-Editor** extension for Chrome.  
